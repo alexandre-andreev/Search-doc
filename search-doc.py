@@ -148,6 +148,7 @@ def cmd_search(ctx, query, top, fmt, no_related, semantic_only):
     from src.index.db import get_meta, open_db
     from src.search.fts import fts_search
     from src.search.ranker import aggregate_to_books, is_technical_query, rrf_fuse
+    from src.search.related import build_related_payload, find_related
     from src.search.semantic import semantic_search
 
     try:
@@ -187,10 +188,15 @@ def cmd_search(ctx, query, top, fmt, no_related, semantic_only):
     for r in results:
         r.pop("_duplicate_of", None)
 
-    search_time_ms = round((time.perf_counter() - t0) * 1000)
-
-    # related_books — заглушка до Этапа 4
+    # related_books — Этап 4
     related_books: list[dict] = []
+    if results and not no_related:
+        top1_book_id = results[0]["book_id"]
+        main_book_ids = {r["book_id"] for r in results}
+        related_hits = find_related(conn, top1_book_id, k=15, exclude_book_ids=main_book_ids)
+        related_books = build_related_payload(conn, related_hits, max_results=5)
+
+    search_time_ms = round((time.perf_counter() - t0) * 1000)
 
     conn.close()
 

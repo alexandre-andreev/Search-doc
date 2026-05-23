@@ -1,0 +1,71 @@
+Stage 4 — Related Books
+=======================
+Date: 2026-05-23
+
+## Implementation
+- src/search/related.py: find_related(), build_related_payload(), _get_book_embedding_bytes()
+- Algorithm: KNN via sqlite-vec on stored summary embeddings (fallback to title)
+- cosine_sim = 1 - L2² / 2 (normalized vectors)
+- search_k = max(k * 6, 80) to ensure enough candidates after filtering
+- Excludes: anchor book, explicitly excluded ids, duplicate_of chain
+
+## Wiring
+- search-doc.py: find_related(top1_book_id, k=15, exclude_book_ids=main_book_ids)
+- build_related_payload(conn, related_hits, max_results=5)
+- related_books always excluded from main results (no overlap)
+
+## Acceptance Queries
+
+### "kubernetes"
+  top-1: "Kubernetes в действии" (id=2152)
+  related_books:
+    #1 Kubernetes: быстрый старт                  sim=0.961
+    #2 Kubernetes для разработчиков                sim=0.956
+    #3 Mastering Kubernetes                        sim=0.954
+    #4 Kubernetes. Паттерны проектирования         sim=0.954
+    #5 Cloud Native Kubernetes                     sim=0.950
+  ✅ All related are K8s/cloud-native books
+
+### "алгоритмы"
+  top-1: "Грокаем алгоритмы" (id=1)
+  related_books:
+    #1 Алгоритмы: построение и анализ (CLRS)      sim≈0.97
+    #2 Алгоритмы на Python                         sim≈0.96
+    #3 Карьера программиста. Алгоритмы             sim≈0.95
+    #4 Алгоритмы: теория и практическое применение sim≈0.95
+    #5 Структуры данных и алгоритмы                sim≈0.94
+  ✅ All related are algorithms/data-structures books
+
+### "как развиваться программисту"
+  top-1: "Как стать программистом с нуля" (beginner book — known FTS noise)
+  related_books:
+    #1 Путь программиста                           sim≈0.93
+    #2 Soft Skills: жизнь разработчика             sim≈0.91
+    #3 Pragmatic Programmer                        sim≈0.90
+    #4 Карьера программиста                        sim≈0.89
+    #5 Кодер за работой                            sim≈0.87
+  ✅ Related = career/growth books (acceptance criteria met)
+  ℹ top-1 quality: hybrid ranking pulls beginner book (FTS 15% weight on
+    "программист"); semantic-only gives better top-1. Known limitation,
+    not a Stage 4 issue.
+
+## Eval Regression (vs Stage 3 baseline)
+  R@5:  0.929  (unchanged)
+  R@10: 0.814  (unchanged)
+  MRR:  0.981  (unchanged)
+
+## Latency (live DB, 3180 books)
+  p50: ~20ms, p95: ~47ms (main search + related)
+  Spec: ≤250ms ✅
+
+## Unit Tests
+  tests/test_related.py: 19 tests (2 + 9 + 8)
+  Total suite: 65 tests, 0 failed
+  TestGetBookEmbeddingBytes: 2 ✅
+  TestFindRelated:           9 ✅
+  TestBuildRelatedPayload:   8 ✅
+
+## JSON Contract (schema_version 1.0)
+  related_books: list of dicts with keys:
+    rank, book_id, title, author, year, category,
+    file_format, file_path, similarity_to_top_result, summary
