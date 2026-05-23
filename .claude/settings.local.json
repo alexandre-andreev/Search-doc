@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"venv-embed-test\\\\Scripts\\\\pip.exe\" install *)",
+      "Bash(dir /B)",
+      "PowerShell(Get-ChildItem \"D:\\\\_project\\\\Search-doc\" -Force | ForEach-Object { \"$\\($_.PSIsContainer ? 'DIR' : 'FILE'\\) $\\($_.Name\\)\" })",
+      "PowerShell(Get-ChildItem \"D:\\\\_project\\\\Search-doc\\\\cache\" -Force | ForEach-Object { \"$\\($_.PSIsContainer ? 'DIR' : 'FILE'\\) $\\($_.Name\\)\" })",
+      "PowerShell(Get-ChildItem \"D:\\\\_project\\\\Search-doc\\\\eval\" -Force | ForEach-Object { \"$\\($_.PSIsContainer ? 'DIR' : 'FILE'\\) $\\($_.Name\\)\" })",
+      "Bash('venv-embed-test\\\\Scripts\\\\python.exe' -c ' *)",
+      "Bash(\"venv-embed-test\\\\Scripts\\\\python.exe\" search-doc.py --help)",
+      "Bash(\"venv-embed-test\\\\Scripts\\\\python.exe\" search-doc.py import --help)",
+      "Bash(\"venv-embed-test\\\\Scripts\\\\python.exe\" search-doc.py search --help)",
+      "Bash(\"venv-embed-test\\\\Scripts\\\\python.exe\" eval/run_eval.py)",
+      "Bash(\"venv-embed-test\\\\Scripts\\\\python.exe\" search-doc.py search \"Python тестирование pytest\" --top 3 --format json)",
+      "Bash(\"venv-embed-test\\\\Scripts\\\\python.exe\" -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('schema_version:', d['schema_version']\\); print\\('search_time_ms:', d['search_time_ms']\\); [print\\(f'{r[\\\\\"rank\\\\\"]}. [{r[\\\\\"score\\\\\"]}] {r[\\\\\"title\\\\\"]}'\\) for r in d['results']]\")",
+      "Bash(\"venv-embed-test\\\\Scripts\\\\python.exe\" search-doc.py search \"разработка через тестирование TDD\" --top 5 --format text)",
+      "Bash('venv-embed-test\\\\Scripts\\\\python.exe' -u -c ' *)",
+      "Bash(python -u -c ' *)",
+      "Bash(not exist *)",
+      "PowerShell(New-Item *)",
+      "Bash(\"venv-embed-test\\\\Scripts\\\\python.exe\" -m pytest tests/ -v)",
+      "Bash(\"venv-embed-test\\\\Scripts\\\\python.exe\" search-doc.py import --rebuild)",
+      "Bash(\"venv-embed-test\\\\Scripts\\\\python.exe\" search-doc.py search \"algorithms and data structures\" --top 3 --format json)",
+      "Bash(venv-embed-test\\\\Scripts\\\\python.exe -m pytest tests/ -v)"
+    ]
+  }
+}

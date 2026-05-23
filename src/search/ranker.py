@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import re
 import sqlite3
+from collections import defaultdict
 from pathlib import Path
 
 KIND_BONUS: dict[str, float] = {
@@ -220,4 +221,35 @@ def aggregate_to_books(
         })
 
     results.sort(key=lambda r: -r["score"])
-    return results[:top_k]
+
+    # Фильтрация дубликатов и сбор поля duplicates
+    canonical = [r for r in results if r["_duplicate_of"] is None]
+    dup_in_results = [r for r in results if r["_duplicate_of"] is not None]
+
+    # Пути дубликатов из текущей выдачи
+    dup_paths: dict[int, list[str]] = defaultdict(list)
+    for r in dup_in_results:
+        canon_id = r["_duplicate_of"]
+        if r["file_path"]:
+            dup_paths[canon_id].append(r["file_path"])
+
+    # Пути дубликатов из БД (книги, не попавшие в поиск)
+    canon_ids = [r["book_id"] for r in canonical]
+    if canon_ids:
+        ph = ",".join("?" * len(canon_ids))
+        for db_row in conn.execute(
+            f"SELECT duplicate_of, filename, folder FROM books WHERE duplicate_of IN ({ph})",
+            canon_ids,
+        ).fetchall():
+            canon_id, fname, fdir = db_row
+            fdir = fdir or ""
+            fname = fname or ""
+            fp = str(Path(fdir) / fname) if fdir and fname else fname or fdir
+            if fp:
+                dup_paths[canon_id].append(fp)
+
+    for r in canonical:
+        seen = set()
+        r["duplicates"] = [p for p in dup_paths.get(r["book_id"], []) if not (p in seen or seen.add(p))]
+
+    return canonical[:top_k]

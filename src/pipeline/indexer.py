@@ -12,6 +12,7 @@ from tqdm import tqdm
 from src.catalog_import.xlsx_loader import CatalogBook, IndexChunk, build_chunks, load_catalog
 from src.embedder.e5_small import E5SmallEmbedder
 from src.index.db import apply_schema, open_db, set_meta
+from src.index.dedup import compute_simhash
 
 
 def _row_hash(book: CatalogBook) -> str:
@@ -30,20 +31,22 @@ def _chunk_hash(text: str) -> str:
 
 
 def _insert_book(conn: sqlite3.Connection, book: CatalogBook, row_hash: str) -> int:
+    text_for_hash = (book.summary or book.title or "")
+    simhash_val = compute_simhash(text_for_hash)
     cur = conn.execute(
         """
         INSERT INTO books (
             catalog_id, title, author, year, publisher,
             category, section, subsection,
             file_format, file_size_mb, filename, folder, summary,
-            xlsx_row_hash, status, indexed_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            xlsx_row_hash, text_simhash, status, indexed_at
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
             book.catalog_id, book.title, book.author, book.year, book.publisher,
             book.category, book.section, book.subsection,
             book.file_format, book.file_size_mb, book.filename, book.folder, book.summary,
-            row_hash, "imported", time.time(),
+            row_hash, simhash_val, "imported", time.time(),
         ),
     )
     return cur.lastrowid

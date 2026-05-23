@@ -1,0 +1,6 @@
+Manual test observation (2026-05-23):
+- search_time_ms = 8793 includes model loading (~8.7s), actual search ~50ms
+- Timer in search-doc.py starts AFTER E5SmallEmbedder() — misleading metric
+- Daemon/serve mode is critical for Codex GUI UX (each query = cold start)
+- Duplicates visible in results (rank 5 + rank 7 = same book, rank 4 + rank 8 = same)
+  → Stage 5 (dedup) will fix this

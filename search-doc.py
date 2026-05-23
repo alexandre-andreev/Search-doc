@@ -124,6 +124,38 @@ def cmd_status(ctx, fmt):
             click.echo(f"Индексировано: {ts.strftime('%Y-%m-%d %H:%M:%S')}")
 
 
+# ─── dedup ───────────────────────────────────────────────────────────────────
+
+@cli.command("dedup")
+@click.pass_context
+def cmd_dedup(ctx):
+    """Найти и пометить дублирующиеся книги по simhash саммари."""
+    if not DEFAULT_DB.exists():
+        click.echo("Ошибка: БД не найдена. Сначала запустите: python search-doc.py import", err=True)
+        sys.exit(2)
+
+    from src.index.db import open_db
+    from src.index.dedup import HAMMING_THRESHOLD, run_dedup
+
+    try:
+        conn = open_db(DEFAULT_DB)
+    except Exception as exc:
+        click.echo(f"Ошибка открытия БД: {exc}", err=True)
+        sys.exit(2)
+
+    click.echo(f"Запускаю дедупликацию (порог Хэмминга <= {HAMMING_THRESHOLD})...")
+    stats = run_dedup(conn)
+    conn.close()
+
+    if stats["backfilled"]:
+        click.echo(f"  Вычислено simhash: {stats['backfilled']} книг")
+    click.echo(f"  Групп дубликатов:  {stats['groups_found']}")
+    click.echo(f"  Помечено дублей:   {stats['duplicates_marked']}")
+
+    if stats["duplicates_marked"] == 0:
+        click.echo("Дубликатов не найдено.")
+
+
 # ─── search ──────────────────────────────────────────────────────────────────
 
 @cli.command("search")
