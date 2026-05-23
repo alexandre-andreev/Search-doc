@@ -1,0 +1,75 @@
+==============================================================================
+  EVAL — ЭТАП 3 BASELINE
+  Дата: 2026-05-23 12:18:17
+  Eval-набор: eval/eval_queries_v2.yaml (v2.0)
+  Модель: intfloat/multilingual-e5-small  dim=384
+  Поиск: hybrid RRF (semantic + FTS5), адаптивные веса
+==============================================================================
+
+  ID                                  R@5   R@10    MRR   Статус
+  -------------------------------- ------ ------ ------   ----------
+  testing_unit_python                1.00   1.00   1.00   OK
+  testing_general                    1.00   0.67   1.00   OK
+  tdd                                1.00   1.00   1.00   OK
+  pytest                             1.00   1.00   1.00   OK
+  pentest                            1.00   1.00   1.00   OK
+  clean_architecture                 1.00   1.00   1.00   OK
+  ddd                                1.00   1.00   1.00   OK
+  microservices                      1.00   0.67   0.33   OK
+  design_patterns                    1.00   1.00   1.00   OK
+  kubernetes                         0.50   0.33   1.00   FAIL
+  docker                             0.50   0.33   1.00   FAIL
+  cicd                               1.00   1.00   1.00   OK
+  deep_learning                      1.00   0.67   1.00   OK
+  nlp                                1.00   0.67   1.00   OK
+  llm_general                        1.00   1.00   1.00   OK
+  llm_abbreviation                   1.00   1.00   1.00   OK
+  transformers                       1.00   0.50   1.00   OK
+  rust                               0.50   0.33   1.00   FAIL
+  golang                             1.00   0.67   1.00   OK
+  python_async                       1.00   1.00   1.00   OK
+  react                              0.50   0.33   1.00   FAIL
+  javascript_modern                  1.00   1.00   1.00   OK
+  functional_js                      1.00   1.00   1.00   OK
+  cryptography                       1.00   0.67   1.00   OK
+  blockchain                         1.00   1.00   1.00   OK
+  web_security                       1.00   0.67   1.00   OK
+  postgresql                         0.50   0.33   1.00   FAIL
+  sql_optimization                   1.00   1.00   1.00   OK
+  regex                              1.00   1.00   1.00   OK
+  algorithms                         1.00   1.00   1.00   OK
+  project_management                 1.00   1.00   1.00   OK
+  linux_admin                        1.00   0.67   1.00   OK
+  bash_scripting                     1.00   1.00   1.00   OK
+  semantic_purely                    1.00   1.00   1.00   OK
+  cross_lingual                      1.00   1.00   1.00   OK
+
+  СВОДКА:
+    Запросов:                35
+    Средний R@5:             0.929
+    Средний R@10:            0.814
+    Средний MRR:             0.981
+    Идеальных (R@10=1.0):    21/35
+    Провалов  (R@10=0):      0/35
+    Среднее время поиска:    273 мс
+    p95 время поиска:        35 мс
+
+  ACCEPTANCE CRITERIA (Этап 3):
+    R@5  >= 0.78:  0.929  OK
+    MRR  >= 0.74:  0.981  OK
+
+  КЛЮЧЕВЫЕ ЗАПРОСЫ ЭТАПА 3:
+    [pytest]  R@5=1.00 R@10=1.00 MRR=1.00
+    [llm_abbreviation]  R@5=1.00 R@10=1.00 MRR=1.00
+    [golang]  R@5=1.00 R@10=0.67 MRR=1.00
+    [semantic_purely]  R@5=1.00 R@10=1.00 MRR=1.00
+    [cross_lingual]  R@5=1.00 R@10=1.00 MRR=1.00
+
+  ПРОВАЛЫ (R@10 < 0.5) — ожидаемо до Этапа 5 (дедупликация):
+    [kubernetes] причина: дубликаты занимают слоты топ-10, min_top_10>1 паттерна
+    [docker] причина: дубликаты занимают слоты топ-10, min_top_10>1 паттерна
+    [rust] причина: дубликаты занимают слоты топ-10, min_top_10>1 паттерна
+    [react] причина: дубликаты занимают слоты топ-10, min_top_10>1 паттерна
+    [postgresql] причина: дубликаты занимают слоты топ-10, min_top_10>1 паттерна
+
+==============================================================================

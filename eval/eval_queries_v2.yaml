@@ -1,0 +1,408 @@
+# Eval-набор v2 для семантического поиска по библиотеке.
+#
+# Версия 2 (после анализа catalog.xlsx и первого прогона):
+#   - Все ожидаемые книги взяты из РЕАЛЬНОГО catalog.xlsx (проверено).
+#   - Учтены русские переводы английских книг как валидные совпадения.
+#   - Введён новый формат критерия — "any_of_at_least":
+#       пользователь искал тему, у которой в каталоге много книг.
+#       Адекватный критерий — "хотя бы N из M ожидаемых книг должны попасть в топ-K".
+#       Это правильная модель: пользователь хочет получить хорошую выборку, не все возможные книги.
+#
+# Формат запроса:
+#   id: уникальный идентификатор
+#   query: текст запроса
+#   intent: что пользователь на самом деле ищет
+#   relevant_books: список РЕАЛЬНЫХ книг из каталога (substring без регистра)
+#   min_in_top_5:  минимум сколько из relevant_books должны быть в топ-5
+#   min_in_top_10: минимум сколько из relevant_books должны быть в топ-10
+#
+# Метрики:
+#   Recall@5  = min(found_in_top_5, min_in_top_5) / min_in_top_5
+#   Recall@10 = min(found_in_top_10, min_in_top_10) / min_in_top_10
+#   MRR       = 1 / position первого попадания любой relevant_book
+#
+# Критерии приёмки MVP:
+#   Recall@10 ≥ 0.80 (среднее по запросам)
+#   MRR       ≥ 0.50
+#   max_search_latency_s ≤ 1.0
+
+version: "2.0"
+target_library: "C:/Users/alexa/YandexDisk/Книги"
+
+queries:
+
+  # ─── ТЕСТИРОВАНИЕ ───
+  - id: testing_unit_python
+    query: "модульное тестирование на Python"
+    intent: "unit testing именно в Python"
+    relevant_books:
+      - "Python Testing with pytest"
+      - "Art of Unit Testing"
+      - "Python. Разработка на основе тестирования"
+      - "Паттерны разработки на Python: TDD"
+    min_in_top_5: 1
+    min_in_top_10: 2
+
+  - id: testing_general
+    query: "книги про тестирование программного обеспечения"
+    intent: "общая тема тестирования ПО"
+    relevant_books:
+      - "Основы тестирования программного обеспечения"
+      - "Гибкое тестирование"
+      - "Software Test Design"
+      - "Agile-тестирование"
+      - "Python Testing with pytest"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: tdd
+    query: "разработка через тестирование TDD"
+    intent: "TDD как методология"
+    relevant_books:
+      - "Test-Driven"
+      - "разработка через тестирование"
+      - "разработка на основе тестирования"
+      - "Паттерны разработки на Python: TDD"
+    min_in_top_5: 1
+    min_in_top_10: 2
+
+  - id: pytest
+    query: "pytest фикстуры и параметризация тестов"
+    intent: "конкретный фреймворк pytest"
+    relevant_books:
+      - "Python Testing with pytest"
+    min_in_top_5: 1
+    min_in_top_10: 1
+
+  - id: pentest
+    query: "тестирование на проникновение и взлом сетей"
+    intent: "пентест, security testing"
+    relevant_books:
+      - "Penetration Testing"
+      - "Network Penetration"
+      - "Violent Python"
+      - "Black Hat Python"
+      - "Hackers"
+      - "Attacking Network"
+      - "Kali Linux"
+      - "Искусство тестирования на проникновение"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  # ─── АРХИТЕКТУРА ───
+  - id: clean_architecture
+    query: "чистая архитектура и проектирование приложений"
+    intent: "Clean Architecture, Боб Мартин"
+    relevant_books:
+      - "Чистая архитектура"
+      - "Чистый код"
+      - "Чистый python"
+      - "Архитектура программного обеспечения"
+    min_in_top_5: 1
+    min_in_top_10: 2
+
+  - id: ddd
+    query: "предметно-ориентированное проектирование DDD"
+    intent: "Domain-Driven Design"
+    relevant_books:
+      - "Domain-Driven Design"
+      - "Предметно-ориентированное проектирование"
+      - "DDD"
+    min_in_top_5: 2
+    min_in_top_10: 2
+
+  - id: microservices
+    query: "проектирование микросервисной архитектуры"
+    intent: "микросервисы — оба перевода и оригиналы"
+    relevant_books:
+      - "Microservices"
+      - "микросервис"
+      - "Cloud Native"
+      - "Создание микросервисов"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: design_patterns
+    query: "шаблоны проектирования и паттерны GoF"
+    intent: "design patterns в общем"
+    relevant_books:
+      - "Design Pattern"
+      - "Шаблоны проектирования"
+      - "Паттерны проектирования"
+      - "Head First Design"
+    min_in_top_5: 1
+    min_in_top_10: 2
+
+  # ─── DEVOPS ───
+  - id: kubernetes
+    query: "оркестрация контейнеров в Kubernetes"
+    intent: "K8s"
+    relevant_books:
+      - "Kubernetes"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: docker
+    query: "контейнеризация приложений Docker"
+    intent: "Docker"
+    relevant_books:
+      - "Docker"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: cicd
+    query: "непрерывная интеграция и доставка CI/CD"
+    intent: "CI/CD pipelines"
+    relevant_books:
+      - "Continuous"
+      - "непрерывн"
+      - "Jenkins"
+      - "DevOps"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  # ─── ИИ / ML ───
+  - id: deep_learning
+    query: "глубокое обучение и нейронные сети"
+    intent: "deep learning"
+    relevant_books:
+      - "Deep Learning"
+      - "Глубокое обучение"
+      - "нейронн"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: nlp
+    query: "обработка естественного языка"
+    intent: "NLP"
+    relevant_books:
+      - "Natural Language"
+      - "естественн"
+      - "NLP"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: llm_general
+    query: "большие языковые модели и ChatGPT"
+    intent: "LLM, GPT, ChatGPT"
+    relevant_books:
+      - "Large Language"
+      - "ChatGPT"
+      - "GPT"
+      - "генеративн"
+      - "RAG"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: llm_abbreviation
+    query: "LLM в продакшене"
+    intent: "Тест на знание аббревиатуры LLM, не разворачивая её"
+    relevant_books:
+      - "Large Language"
+      - "LLM"
+      - "GPT"
+    min_in_top_5: 1
+    min_in_top_10: 2
+    notes: |
+      Этот запрос — диагностический. Если pre-MVP не находит "LLM"
+      по аббревиатуре, это указывает на необходимость body-extractor
+      (в текстах книг "LLM" встречается, в саммари — реже).
+
+  - id: transformers
+    query: "архитектура transformer и механизм внимания"
+    intent: "Transformers, attention"
+    relevant_books:
+      - "Transformer"
+    min_in_top_5: 1
+    min_in_top_10: 2
+
+  # ─── ЯЗЫКИ ПРОГРАММИРОВАНИЯ ───
+  - id: rust
+    query: "язык программирования Rust"
+    intent: "Rust в общем"
+    relevant_books:
+      - "Rust"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: golang
+    query: "разработка на Go Golang"
+    intent: "Go"
+    relevant_books:
+      - "Go for"
+      - "Go in"
+      - "Golang"
+      - "Build an Orchestrator in Go"
+      - "Everyday Golang"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: python_async
+    query: "асинхронное программирование Python asyncio"
+    intent: "asyncio"
+    relevant_books:
+      - "asyncio"
+      - "Asynchronous"
+    min_in_top_5: 1
+    min_in_top_10: 2
+
+  # ─── ФРОНТЕНД ───
+  - id: react
+    query: "разработка SPA на React"
+    intent: "React, hooks"
+    relevant_books:
+      - "React"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: javascript_modern
+    query: "современный JavaScript ES6"
+    intent: "JS"
+    relevant_books:
+      - "JavaScript"
+      - "Node.js"
+      - "ES6"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: functional_js
+    query: "функциональное программирование на JavaScript"
+    intent: "FP на JS — cross-lingual проверка"
+    relevant_books:
+      - "Грокаем функциональное"
+      - "JavaScript"
+    min_in_top_5: 1
+    min_in_top_10: 2
+
+  # ─── БЕЗОПАСНОСТЬ ───
+  - id: cryptography
+    query: "криптографические алгоритмы и шифрование"
+    intent: "криптография"
+    relevant_books:
+      - "Cryptograph"
+      - "криптограф"
+      - "шифр"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: blockchain
+    query: "блокчейн биткоин криптовалюты"
+    intent: "blockchain"
+    relevant_books:
+      - "блокчейн"
+      - "Blockchain"
+      - "Bitcoin"
+      - "Ethereum"
+      - "криптовалют"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: web_security
+    query: "безопасность веб-приложений"
+    intent: "web security, OWASP"
+    relevant_books:
+      - "Web Application Security"
+      - "Application Security"
+      - "Безопасность веб-приложений"
+      - "веб-безопасности"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  # ─── БАЗЫ ДАННЫХ ───
+  - id: postgresql
+    query: "проектирование баз данных PostgreSQL"
+    intent: "PostgreSQL"
+    relevant_books:
+      - "PostgreSQL"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: sql_optimization
+    query: "оптимизация SQL запросов и индексы"
+    intent: "SQL performance"
+    relevant_books:
+      - "SQL"
+      - "запрос"
+      - "оптимизаци"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  # ─── ПРОЧЕЕ ───
+  - id: regex
+    query: "регулярные выражения"
+    intent: "regex"
+    relevant_books:
+      - "Регулярные выражения"
+      - "Regular Expression"
+    min_in_top_5: 1
+    min_in_top_10: 1
+
+  - id: algorithms
+    query: "алгоритмы и структуры данных"
+    intent: "классические алгоритмы"
+    relevant_books:
+      - "алгоритм"
+      - "Algorithm"
+      - "структур"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: project_management
+    query: "управление проектами и командой разработчиков"
+    intent: "проектный менеджмент, agile"
+    relevant_books:
+      - "управлен"
+      - "Scrum"
+      - "Agile"
+      - "PMBOK"
+      - "Team Topologies"
+      - "менеджмент"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: linux_admin
+    query: "администрирование Linux серверов"
+    intent: "Linux admin"
+    relevant_books:
+      - "Linux"
+      - "администр"
+    min_in_top_5: 2
+    min_in_top_10: 3
+
+  - id: bash_scripting
+    query: "bash скрипты и командная строка"
+    intent: "shell scripting"
+    relevant_books:
+      - "bash"
+      - "Shell"
+      - "Command Line"
+    min_in_top_5: 1
+    min_in_top_10: 2
+
+  # ─── ДИАГНОСТИЧЕСКИЕ ЗАПРОСЫ ───
+  - id: semantic_purely
+    query: "как развиваться программисту и расти в карьере"
+    intent: "soft skills, без точных терминов"
+    relevant_books:
+      - "программист"
+      - "Programmer"
+      - "карьер"
+      - "Саморазвити"
+      - "soft skills"
+    min_in_top_5: 1
+    min_in_top_10: 2
+    notes: |
+      Тест чистой семантики: нет точных терминов, FTS не помогает.
+
+  - id: cross_lingual
+    query: "функциональное программирование на JavaScript"
+    intent: "русский запрос с латинским термином → находит FP-книги + JS-книги"
+    relevant_books:
+      - "Грокаем функциональное"
+      - "JavaScript"
+    min_in_top_5: 2
+    min_in_top_10: 2
+    notes: |
+      Тест cross-lingual: в каталоге нет "Functional JavaScript" (Fogus),
+      поэтому критерий — найти русскую FP-книгу + любую JS-книгу.
+      "React и Redux: функциональная" не ранжируется в топ-50 для этого запроса.

@@ -1,0 +1,42 @@
+# Виртуальное окружение
+venv-embed-test/
+venv/
+.venv/
+
+# База данных и кэш (пересоздаются через import)
+cache/semantic_index.sqlite
+cache/semantic_index.sqlite-wal
+cache/semantic_index.sqlite-shm
+
+# Eval-отчёты хранятся (не игнорируем)
+# cache/eval_reports/ — включаем в git
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# HuggingFace кэш (модели ~300MB, не нужны в репо)
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Логи
+cache/search-doc.log
+
+# Данные каталога (большой файл, не коммитим)
+# data/catalog.xlsx — по желанию добавить в .gitignore если >50MB

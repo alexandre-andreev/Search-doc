@@ -1,0 +1,350 @@
+# Eval-набор для семантического поиска.
+#
+# Каждый запрос содержит:
+#   query — текст запроса (как пользователь напишет Codex'у)
+#   intent — что человек на самом деле ищет (для понимания, не используется в метриках)
+#   expected_in_top_5 — список фрагментов имён файлов, которые ДОЛЖНЫ быть в топ-5.
+#                        Совпадение: подстрока в filename без учёта регистра.
+#   expected_in_top_10 — то же, но достаточно попасть в топ-10. Используется
+#                         для книг "тоже релевантные, но не идеальное попадание".
+#   notes — комментарий для разработчика
+#
+# Эталоны составлены на основе catalog.xlsx (3180 книг, 35 разделов таксономии).
+# Все ожидаемые книги ФИЗИЧЕСКИ существуют в библиотеке.
+#
+# Метрики:
+#   Recall@5 = доля ожидаемых_in_top_5, попавших в топ-5
+#   Recall@10 = доля (ожидаемых_in_top_5 ∪ in_top_10), попавших в топ-10
+#   MRR = mean reciprocal rank первого попадания
+#
+# Критерии приёмки MVP:
+#   Recall@10 ≥ 0.75 (median по запросам)
+#   MRR ≥ 0.4
+#   max_search_latency_s ≤ 1.0
+
+version: "1.0"
+target_library: "C:/Users/alexa/YandexDisk/Книги"
+
+queries:
+
+  # ─── ТЕСТИРОВАНИЕ (классический пробный запрос из постановки) ───
+  - id: testing_general
+    query: "книги про модульное тестирование"
+    intent: "общая тема юнит-тестирования, на любом языке"
+    expected_in_top_5:
+      - "Python Testing with pytest"
+      - "Python. Разработка на основе тестирования"
+      - "Test-Driven"
+    expected_in_top_10:
+      - "Learning Test-Driven Development"
+      - "Test Your Skills In Python"
+      - "Agile-тестирование"
+    notes: |
+      Пробный запрос из исходной постановки задачи. Семантика должна найти
+      книги даже без слова "unit testing" в названии (например,
+      "Разработка на основе тестирования" - это TDD).
+
+  - id: tdd_python
+    query: "разработка через тестирование TDD на Python"
+    intent: "TDD конкретно в контексте Python"
+    expected_in_top_5:
+      - "Python. Разработка на основе тестирования"
+      - "Паттерны разработки на Python: TDD"
+    expected_in_top_10:
+      - "Learning Test-Driven Development"
+      - "Python Testing with pytest"
+
+  - id: pytest_specific
+    query: "pytest фикстуры и параметризация"
+    intent: "конкретный инструмент pytest, точный технический термин"
+    expected_in_top_5:
+      - "Python Testing with pytest"
+    expected_in_top_10:
+      - "Python. Разработка на основе тестирования"
+    notes: |
+      Хороший тест для гибридного поиска: "pytest" должен сильно бустить через FTS,
+      а "фикстуры" и "параметризация" — через semantic.
+
+  - id: pentest
+    query: "пентестинг сетей и эксплуатация уязвимостей"
+    intent: "тестирование на проникновение"
+    expected_in_top_5:
+      - "Penetration Testing"
+      - "тестирование на проникновение"
+    expected_in_top_10:
+      - "Kali Linux"
+      - "Black Hat Python"
+      - "Violent Python"
+
+  # ─── АРХИТЕКТУРА ───
+  - id: clean_architecture
+    query: "чистая архитектура и принципы проектирования"
+    intent: "Clean Architecture, Боб Мартин"
+    expected_in_top_5:
+      - "Чистая архитектура"
+    expected_in_top_10:
+      - "Чистый код"
+      - "Архитектура"
+
+  - id: ddd
+    query: "предметно-ориентированное проектирование DDD"
+    intent: "Domain-Driven Design"
+    expected_in_top_5:
+      - "Domain-Driven Design"
+      - "Предметно-ориентированное проектирование"
+      - "DDD"
+    expected_in_top_10:
+      - "Изучаем DDD"
+      - "Паттерны разработки на Python: TDD, DDD"
+
+  - id: microservices
+    query: "проектирование микросервисной архитектуры"
+    intent: "микросервисы, Сэм Ньюмен и подобные"
+    expected_in_top_5:
+      - "Microservices"
+      - "микросервис"
+    expected_in_top_10:
+      - "Cloud Native"
+      - "Building Microservices"
+
+  - id: design_patterns
+    query: "шаблоны проектирования банды четырёх"
+    intent: "GoF design patterns"
+    expected_in_top_5:
+      - "Design Patterns"
+      - "Шаблоны проектирования"
+    expected_in_top_10:
+      - "паттерны"
+
+  # ─── DEVOPS / ИНФРАСТРУКТУРА ───
+  - id: kubernetes
+    query: "оркестрация контейнеров в Kubernetes"
+    intent: "K8s в общем"
+    expected_in_top_5:
+      - "Kubernetes"
+    expected_in_top_10:
+      - "Core Kubernetes"
+      - "Kubernetes in Action"
+
+  - id: docker
+    query: "контейнеризация приложений Docker"
+    intent: "Docker для разработчиков"
+    expected_in_top_5:
+      - "Docker"
+    expected_in_top_10:
+      - "Kubernetes"
+
+  - id: cicd
+    query: "непрерывная интеграция и развертывание CI/CD"
+    intent: "CI/CD pipelines"
+    expected_in_top_5:
+      - "Continuous Delivery"
+    expected_in_top_10:
+      - "DevOps"
+      - "Continuous Integration"
+
+  # ─── ИИ / ML ───
+  - id: deep_learning
+    query: "глубокое обучение нейронные сети"
+    intent: "deep learning, базовые книги"
+    expected_in_top_5:
+      - "Deep Learning"
+      - "Глубокое обучение"
+    expected_in_top_10:
+      - "нейронн"
+
+  - id: nlp
+    query: "обработка естественного языка"
+    intent: "NLP, embeddings, токенизация"
+    expected_in_top_5:
+      - "естественного языка"
+      - "NLP"
+      - "natural language"
+    expected_in_top_10:
+      - "spaCy"
+      - "TensorFlow"
+
+  - id: llm
+    query: "большие языковые модели и GPT"
+    intent: "LLM, GPT-4, ChatGPT"
+    expected_in_top_5:
+      - "GPT"
+      - "Large Language"
+    expected_in_top_10:
+      - "ChatGPT"
+
+  - id: transformers
+    query: "архитектура transformer и механизм внимания"
+    intent: "конкретно про transformers / attention"
+    expected_in_top_5:
+      - "Transformer"
+    expected_in_top_10:
+      - "Attention"
+      - "deep learning"
+    notes: |
+      В каталоге только 3 книги с Transformer в названии. Это сложный запрос,
+      если выдача слабая — это сигнал, что нужно индексировать саммари.
+
+  # ─── ЯЗЫКИ ПРОГРАММИРОВАНИЯ ───
+  - id: rust
+    query: "язык программирования Rust"
+    intent: "Rust в общем"
+    expected_in_top_5:
+      - "Rust"
+    expected_in_top_10:
+      - "Rust Programming"
+
+  - id: golang
+    query: "разработка backend на Go Golang"
+    intent: "Go-программирование"
+    expected_in_top_5:
+      - "Go "
+      - "Golang"
+    expected_in_top_10:
+      - "Go in"
+      - "Go for"
+
+  - id: python_async
+    query: "асинхронное программирование на Python asyncio"
+    intent: "async/await в Python"
+    expected_in_top_5:
+      - "asyncio"
+      - "Python"
+    expected_in_top_10:
+      - "asynchron"
+
+  # ─── ФРОНТЕНД ───
+  - id: react
+    query: "разработка SPA на React"
+    intent: "React, hooks, Redux"
+    expected_in_top_5:
+      - "React"
+    expected_in_top_10:
+      - "React Projects"
+      - "React быстро"
+
+  - id: javascript
+    query: "современный JavaScript ES6 и далее"
+    intent: "JS, ECMAScript"
+    expected_in_top_5:
+      - "JavaScript"
+    expected_in_top_10:
+      - "ES6"
+      - "Node"
+
+  # ─── БЕЗОПАСНОСТЬ / КРИПТОГРАФИЯ ───
+  - id: cryptography
+    query: "криптографические алгоритмы и протоколы"
+    intent: "AES, RSA, ECC, протоколы"
+    expected_in_top_5:
+      - "Cryptography"
+      - "Криптограф"
+    expected_in_top_10:
+      - "шифр"
+      - "Real-World Cryptography"
+
+  - id: blockchain
+    query: "блокчейн и криптовалюты"
+    intent: "Bitcoin, Ethereum, блокчейн в целом"
+    expected_in_top_5:
+      - "блокчейн"
+      - "Bitcoin"
+      - "Blockchain"
+    expected_in_top_10:
+      - "Ethereum"
+      - "криптовалют"
+
+  - id: cybersec
+    query: "информационная безопасность веб-приложений"
+    intent: "OWASP, web security"
+    expected_in_top_5:
+      - "веб-безопасности"
+      - "Web Security"
+    expected_in_top_10:
+      - "OWASP"
+      - "безопасност"
+
+  # ─── БАЗЫ ДАННЫХ ───
+  - id: postgresql
+    query: "проектирование баз данных PostgreSQL"
+    intent: "PostgreSQL"
+    expected_in_top_5:
+      - "PostgreSQL"
+      - "Postgres"
+    expected_in_top_10:
+      - "база данных"
+      - "SQL"
+
+  - id: sql_general
+    query: "оптимизация SQL запросов"
+    intent: "SQL performance, индексы"
+    expected_in_top_5:
+      - "SQL"
+    expected_in_top_10:
+      - "Оптимизация"
+      - "запрос"
+
+  # ─── СПЕЦИАЛЬНЫЕ ───
+  - id: regex
+    query: "регулярные выражения и обработка текста"
+    intent: "regex, sed/awk"
+    expected_in_top_5:
+      - "Регулярные выражения"
+    expected_in_top_10:
+      - "обработк"
+
+  - id: algorithms
+    query: "алгоритмы и структуры данных"
+    intent: "классические алгоритмы, Кнут, Седжвик"
+    expected_in_top_5:
+      - "алгоритм"
+      - "Algorithm"
+    expected_in_top_10:
+      - "структур"
+      - "Sedgewick"
+
+  - id: management
+    query: "управление командой разработчиков"
+    intent: "tech leadership, management"
+    expected_in_top_5:
+      - "Менеджмент"
+      - "управлен"
+    expected_in_top_10:
+      - "команд"
+      - "leadership"
+
+  - id: linux
+    query: "администрирование Linux серверов"
+    intent: "Linux admin, bash"
+    expected_in_top_5:
+      - "Linux"
+    expected_in_top_10:
+      - "Bash"
+      - "shell"
+
+  # ─── ХИТРЫЕ ЗАПРОСЫ (тесты на семантику) ───
+  - id: semantic_only
+    query: "как стать лучше как программист"
+    intent: "soft skills, career growth, без точных терминов"
+    expected_in_top_5:
+      - "программист"
+      - "Programmer"
+    expected_in_top_10:
+      - "Саморазвитие"
+      - "Soft Skills"
+      - "карьер"
+    notes: |
+      Тест на чистую семантику: тут нет конкретного техн. термина,
+      FTS почти не должен помогать. Хороший индикатор качества embeddings.
+
+  - id: russian_query_english_book
+    query: "функциональное программирование на JavaScript"
+    intent: "FP, концепция должна находиться и в англоязычных книгах"
+    expected_in_top_5:
+      - "Functional"
+      - "функциональн"
+    expected_in_top_10:
+      - "JavaScript"
+    notes: |
+      Тест на cross-lingual: русский запрос должен находить англ. книги.
+      Это ключевая способность multilingual-e5-small.

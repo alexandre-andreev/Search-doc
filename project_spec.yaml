@@ -1,0 +1,236 @@
+# Machine-readable specification for Claude Code.
+# Source of truth for parameters. Reference from TASK_FOR_CODE.md.
+# Version: 2.0 FINAL (post pre-MVP validation)
+
+project:
+  name: search-doc
+  cli_name: search-doc.py
+  version: 0.1.0
+  schema_version: "1.0"
+  root_dir: "D:\\_project\\Search-doc"
+  python: ">=3.11"
+
+hardware_target:
+  gpu: "NVIDIA GeForce GTX 1650 Ti"
+  vram_gb: 4.0
+  ram_gb: 16
+  cuda: "12.4"
+  os: "Windows 11"
+
+existing_assets:
+  - path: "pre_mvp_eval.py"
+    role: "Reference implementation. Reuse logic from load_catalog, build_chunks, safe_int, safe_str, evaluate_query."
+  - path: "data/catalog.xlsx"
+    role: "Source of book metadata. 3180 rows, 3179 with summary."
+  - path: "data/taxonomy.xlsx"
+    role: "Reference taxonomy. Optional in MVP."
+  - path: "library_inventory.csv"
+    role: "Inventory of 2943 files on disk."
+  - path: "eval/eval_queries_v2.yaml"
+    role: "Eval set, 35 queries with real book names."
+  - path: "venv-embed-test/"
+    role: "Existing Python venv with torch+CUDA+sentence-transformers. DO NOT recreate."
+
+embedding:
+  model_name: "intfloat/multilingual-e5-small"
+  embedding_dim: 384
+  device: "cuda"
+  batch_size: 32
+  normalize: true
+  passage_prefix: "passage: "
+  query_prefix: "query: "
+  expected_chunks_per_sec: 384
+  vram_usage_mb: 480
+
+chunking:
+  chunk_kinds:
+    - kind: "title"
+      content: "<book title>. <author>"
+      weight: 1.5
+      max_chars: 250
+    - kind: "summary"
+      content: "AI-summary from catalog.xlsx"
+      weight: 1.3
+      min_chars: 100
+      max_chars: 2000
+
+catalog_import:
+  xlsx_path: "data/catalog.xlsx"
+  xlsx_sheet: "Каталог"
+  required_columns: ["№", "Название", "Имя файла"]
+  expected_rows: 3180
+  expected_rows_with_summary: 3179
+
+search:
+  default_top_k: 10
+  semantic_candidates: 50
+  fts_candidates: 50
+  rrf_k_semantic: 60
+  rrf_k_fts: 200
+  weights_descriptive_query:
+    semantic: 0.85
+    fts: 0.15
+  weights_technical_query:
+    semantic: 0.40
+    fts: 0.60
+  technical_token_whitelist:
+    - pytest
+    - junit
+    - tdd
+    - ddd
+    - rest
+    - grpc
+    - sql
+    - css
+    - html
+    - http
+    - jwt
+    - api
+    - sdk
+    - cli
+    - solid
+    - llm
+    - gpt
+    - rag
+    - nlp
+    - cnn
+    - ml
+    - ai
+    - go
+    - rust
+    - java
+    - swift
+    - kotlin
+    - ruby
+    - php
+    - bash
+    - shell
+    - linux
+    - docker
+    - kubernetes
+    - k8s
+    - terraform
+    - ansible
+    - jenkins
+    - aws
+    - gcp
+    - azure
+    - postgres
+    - postgresql
+    - mysql
+    - sqlite
+    - redis
+    - mongodb
+    - kafka
+    - react
+    - vue
+    - angular
+    - django
+    - flask
+    - fastapi
+    - spring
+    - express
+    - numpy
+    - pandas
+    - tensorflow
+    - pytorch
+    - keras
+  book_score_chunk_count_bonus: 0.1
+
+  related:
+    enabled_default: true
+    source: "top-1 result of main search"
+    method: "cosine similarity on summary embedding"
+    top_k: 5
+    exclude_main_results: true
+    exclude_duplicates: true
+    min_similarity: 0.5
+
+  chunk_text_limit_json: 500
+  chunk_text_limit_text: 300
+  score_decimal_places: 3
+
+storage:
+  db_path: "cache/semantic_index.sqlite"
+  log_path: "cache/search-doc.log"
+  sqlite_pragmas:
+    journal_mode: WAL
+    synchronous: NORMAL
+    cache_size: -64000
+    temp_store: MEMORY
+    foreign_keys: ON
+
+dedup:
+  simhash_bits: 64
+  simhash_text_source: "summary"
+  simhash_chars: 50000
+  hamming_threshold: 3
+  canonical_format_priority: ["epub", "fb2", "docx", "pdf", "mobi", "djvu", "txt"]
+
+incremental_import:
+  hash_source: "title + author + summary + year"
+  hash_algorithm: "sha256"
+  rebuild_flag: "--rebuild"
+
+quality_criteria:
+  baseline:
+    r_at_5: 0.78
+    mrr: 0.74
+  final:
+    r_at_5: 0.85
+    r_at_10: 0.80
+    mrr: 0.80
+    max_search_latency_ms: 300
+    import_time_cold_max_s: 60
+    import_time_incremental_max_s: 5
+
+dependencies:
+  installed:
+    - "torch (with CUDA 12.4)"
+    - "sentence-transformers"
+    - "pandas"
+    - "openpyxl"
+    - "pyyaml"
+    - "numpy"
+    - "psutil"
+  to_install:
+    - "sqlite-vec>=0.1.6"
+    - "click>=8.1"
+    - "tqdm>=4.66"
+    - "simhash>=2.1"
+  dev:
+    - "pytest>=8"
+    - "pytest-cov"
+
+out_of_scope_for_mvp:
+  - "Body extraction from PDF/EPUB/FB2/DOCX/TXT"
+  - "OCR for scanned PDFs"
+  - "GUI tab"
+  - "Re-classification via LLM API"
+  - "Alternative embedding providers"
+  - "Cross-encoder reranking"
+  - "Web/REST API"
+  - "Multi-process indexing"
+
+implementation_stages:
+  - id: 1
+    name: "Skeleton + DB + Catalog Import"
+    deliverable: "3180 books in SQLite with embeddings, status command works"
+  - id: 2
+    name: "Semantic search via sqlite-vec"
+    deliverable: "search command returns JSON; eval matches pre_mvp baseline"
+  - id: 3
+    name: "Hybrid search (semantic + FTS5)"
+    deliverable: "3 problem queries (pytest, golang, llm_abbreviation) find target books"
+  - id: 4
+    name: "Related books"
+    deliverable: "related_books field populated for descriptive queries"
+  - id: 5
+    name: "Deduplication"
+    deliverable: "dedup command marks duplicates; search hides them"
+  - id: 6
+    name: "Incremental import"
+    deliverable: "Repeated import without xlsx changes takes <5s"
+  - id: 7
+    name: "CLI polish (filters, book, open, categories)"
+    deliverable: "All CLI commands work, errors are clear"

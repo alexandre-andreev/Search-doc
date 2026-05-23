@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "search-doc"
+version = "0.1.0"
+description = "Локальный семантический поиск по библиотеке книг"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    "numpy>=1.26",
+    "sentence-transformers>=3.0",
+    "pyyaml>=6.0",
+    "sqlite-vec>=0.1.6",
+    "click>=8.1",
+    "tqdm>=4.66",
+    # torch устанавливается отдельно с CUDA-поддержкой:
+    # pip install torch --index-url https://download.pytorch.org/whl/cu124
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+]
+
+[project.scripts]
+search-doc = "search-doc:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
