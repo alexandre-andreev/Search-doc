@@ -96,6 +96,7 @@ def aggregate_to_books(
     top_k: int = 10,
     raw_semantic: dict[int, float] | None = None,
     raw_fts: dict[int, float] | None = None,
+    filters: dict | None = None,
 ) -> list[dict]:
     """
     Агрегирует чанки в книги:
@@ -103,6 +104,8 @@ def aggregate_to_books(
 
     raw_semantic / raw_fts — опциональные словари сырых оценок для отображения
     в matched_chunks (не влияют на ранжирование).
+
+    filters — опциональный словарь {section, year_from, format} для фильтрации результатов.
     """
     if not hits:
         return []
@@ -111,6 +114,24 @@ def aggregate_to_books(
     score_map = {h[0]: h[1] for h in hits}
 
     placeholders = ",".join("?" * len(chunk_ids))
+
+    where_parts = [f"c.id IN ({placeholders})"]
+    params: list = list(chunk_ids)
+
+    if filters:
+        if filters.get("section"):
+            where_parts.append("b.section = ?")
+            params.append(filters["section"])
+        if filters.get("year_from") is not None:
+            where_parts.append("(b.year IS NOT NULL AND b.year >= ?)")
+            params.append(int(filters["year_from"]))
+        if filters.get("format"):
+            fmts = [f.strip().lower() for f in str(filters["format"]).split(",") if f.strip()]
+            if fmts:
+                ph = ",".join("?" * len(fmts))
+                where_parts.append(f"LOWER(COALESCE(b.file_format, '')) IN ({ph})")
+                params.extend(fmts)
+
     rows = conn.execute(
         f"""
         SELECT
@@ -134,9 +155,9 @@ def aggregate_to_books(
             b.duplicate_of
         FROM chunks c
         JOIN books b ON c.book_id = b.id
-        WHERE c.id IN ({placeholders})
+        WHERE {" AND ".join(where_parts)}
         """,
-        chunk_ids,
+        params,
     ).fetchall()
 
     book_data: dict[int, dict] = {}
