@@ -53,9 +53,17 @@ def cmd_import(ctx, catalog, rebuild):
         click.echo("\nПрервано.", err=True)
         sys.exit(130)
 
+    added = stats["books_added"]
+    updated = stats.get("books_updated", 0)
+    skipped = stats.get("books_skipped", 0)
+    removed = stats.get("books_removed", 0)
+
     click.echo(
-        f"\nИмпортировано {stats['books_added']} книг, "
-        f"создано {stats['chunks_created']} чанков "
+        f"\nДобавлено: {added}, обновлено: {updated}, "
+        f"пропущено: {skipped}, удалено: {removed}"
+    )
+    click.echo(
+        f"Создано {stats['chunks_created']} чанков "
         f"(title: {stats['n_title']}, summary: {stats['n_summary']}), "
         f"время {stats['elapsed_sec']:.1f} сек"
     )
