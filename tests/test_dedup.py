@@ -5,8 +5,10 @@ import pytest
 
 from src.index.dedup import (
     HAMMING_THRESHOLD,
+    PLACEHOLDER_CLUSTER_LIMIT,
     compute_simhash,
     hamming_distance,
+    normalize_title,
     run_dedup,
 )
 
@@ -189,3 +191,104 @@ class TestRunDedup:
             "SELECT id FROM books WHERE duplicate_of IS NULL"
         ).fetchone()
         assert canonical[0] == 1  # epub — canonical
+
+    def test_stats_include_title_groups_found(self, dedup_db):
+        """run_dedup возвращает поле title_groups_found."""
+        _insert(dedup_db, 1, "Book A", "pdf", 5.0, summary="Python разработка Django REST API веб")
+        stats = run_dedup(dedup_db)
+        assert "title_groups_found" in stats
+
+
+# ─── normalize_title ──────────────────────────────────────────────────────────
+
+class TestNormalizeTitle:
+
+    def test_lowercase(self):
+        assert normalize_title("Clean Code") == "clean code"
+
+    def test_strips_punctuation(self):
+        assert normalize_title("Clean Code: A Handbook") == "clean code a handbook"
+
+    def test_strips_hyphen(self):
+        assert normalize_title("Программист-фанатик") == "программист фанатик"
+
+    def test_strips_russian_edition_marker(self):
+        result = normalize_title("Программист-фанатик 2-е издание")
+        assert "издание" not in result
+        assert "программист" in result
+
+    def test_strips_english_edition_marker(self):
+        result = normalize_title("Clean Code 3rd edition")
+        assert "edition" not in result
+        assert "clean" in result
+
+    def test_empty_title(self):
+        assert normalize_title("") == ""
+
+    def test_whitespace_normalized(self):
+        result = normalize_title("  Python   Programming  ")
+        assert "  " not in result
+
+
+# ─── Two-pass dedup ───────────────────────────────────────────────────────────
+
+class TestTwoPassDedup:
+
+    def test_placeholder_summary_not_clustered(self, dedup_db):
+        """Книги с placeholder-саммари не должны склеиваться между собой.
+
+        PLACEHOLDER_CLUSTER_LIMIT + 1 книг с одинаковым коротким саммари →
+        все остаются non-duplicate.
+        """
+        placeholder = "Не удалось определить содержимое"
+        for book_id in range(1, PLACEHOLDER_CLUSTER_LIMIT + 2):
+            _insert(dedup_db, book_id, f"Книга {book_id}", "pdf", float(book_id),
+                    summary=placeholder)
+        stats = run_dedup(dedup_db)
+        assert stats["duplicates_marked"] == 0
+
+    def test_real_duplicate_with_same_summary_still_caught(self, dedup_db):
+        """Реальные дубли (одинаковое длинное саммари) поймаются через Pass 1."""
+        summary = (
+            "Книга посвящена написанию чистого поддерживаемого кода. "
+            "Рассматриваются принципы SOLID, рефакторинг и паттерны. "
+            "Рекомендуется для опытных разработчиков программного обеспечения."
+        )
+        _insert(dedup_db, 1, "Clean Code EPUB", "epub", 10.0, summary=summary)
+        _insert(dedup_db, 2, "Clean Code PDF",  "pdf",  8.0, summary=summary)
+        stats = run_dedup(dedup_db)
+        assert stats["duplicates_marked"] == 1
+
+    def test_title_duplicate_different_summaries_caught(self, dedup_db):
+        """Pass 2: одинаковый заголовок, разные саммари → дубль пойман."""
+        _insert(dedup_db, 1, "Программист-фанатик", "epub", 10.0,
+                summary="Книга Чеда Фаулера о карьере разработчика и мастерстве программирования.")
+        _insert(dedup_db, 2, "Программист-фанатик", "pdf",  7.0,
+                summary=None)  # нет саммари
+        stats = run_dedup(dedup_db)
+        assert stats["duplicates_marked"] == 1
+        assert stats["title_groups_found"] >= 1
+
+    def test_title_duplicate_hyphen_vs_space(self, dedup_db):
+        """normalize_title выравнивает 'Программист-фанатик' и 'Программист фанатик'."""
+        summary_a = "Книга о мастерстве и карьере программиста с практическими советами."
+        _insert(dedup_db, 1, "Программист-фанатик", "epub", 10.0, summary=summary_a)
+        _insert(dedup_db, 2, "Программист фанатик", "pdf",  7.0, summary=None)
+        stats = run_dedup(dedup_db)
+        assert stats["duplicates_marked"] == 1
+
+    def test_different_titles_not_clustered_by_title(self, dedup_db):
+        """Разные книги с разными заголовками не склеиваются через Pass 2."""
+        _insert(dedup_db, 1, "Чистый код", "epub", 10.0, summary=None)
+        _insert(dedup_db, 2, "Совершенный код", "pdf", 8.0, summary=None)
+        stats = run_dedup(dedup_db)
+        assert stats["duplicates_marked"] == 0
+
+    def test_placeholder_books_can_still_be_caught_via_title(self, dedup_db):
+        """Книга с placeholder-саммари, но с совпадающим заголовком → поймана через Pass 2."""
+        placeholder = "Не удалось определить содержимое"
+        _insert(dedup_db, 1, "Think Like a Programmer", "epub", 12.0, summary=placeholder)
+        _insert(dedup_db, 2, "Think Like a Programmer", "pdf",   9.0, summary=placeholder)
+        stats = run_dedup(dedup_db)
+        # Pass 1 пропускает их (popular simhash), Pass 2 ловит по title
+        assert stats["duplicates_marked"] == 1

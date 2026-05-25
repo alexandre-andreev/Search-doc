@@ -3,11 +3,17 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from collections import Counter
 from hashlib import md5
 from pathlib import Path
 
 SIMHASH_BITS = 64
 HAMMING_THRESHOLD = 3
+
+# Книги, чей simhash встречается у БОЛЕЕ чем PLACEHOLDER_CLUSTER_LIMIT книг,
+# исключаются из summary-кластеризации: такой хеш почти наверняка получен
+# из placeholder-саммари вида «Не удалось определить содержимое».
+PLACEHOLDER_CLUSTER_LIMIT = 5
 
 # Приоритет форматов: ниже индекс → предпочтительнее как canonical
 FORMAT_RANK: dict[str, int] = {
@@ -81,6 +87,26 @@ class _UnionFind:
         return result
 
 
+def normalize_title(title: str) -> str:
+    """Нормализует заголовок для title-based дедупликации.
+
+    Приводит к нижнему регистру, удаляет маркеры издания (2-е изд., 3rd edition,
+    revised и т.п.) и всю пунктуацию, нормализует пробелы.
+    """
+    t = title.lower()
+    # Маркеры изданий (русские и английские)
+    t = re.sub(
+        r'\b\d+\s*[-–]?\s*(?:е\s*(?:изд(?:ание)?)?|я\s*(?:изд(?:ание)?)?'
+        r'|th\s*(?:ed(?:ition)?)?|st\s*(?:ed(?:ition)?)?'
+        r'|nd\s*(?:ed(?:ition)?)?|rd\s*(?:ed(?:ition)?)?)',
+        ' ', t,
+    )
+    t = re.sub(r'\b(?:издание|edition|revised|updated|expanded|reprint)\b', ' ', t)
+    # Всю пунктуацию заменяем пробелом
+    t = re.sub(r'[^\w\s]', ' ', t)
+    return re.sub(r'\s+', ' ', t).strip()
+
+
 def _canonical_sort_key(book: dict) -> tuple:
     """
     Ключ сортировки для выбора canonical: меньше = предпочтительнее.
@@ -97,8 +123,11 @@ def _canonical_sort_key(book: dict) -> tuple:
 def run_dedup(conn: sqlite3.Connection) -> dict:
     """
     1. Backfill: вычисляет simhash для книг с text_simhash IS NULL.
-    2. Clustering: union-find по Hamming-расстоянию ≤ HAMMING_THRESHOLD.
-    3. Marking: для каждого кластера помечает non-canonical как duplicate_of.
+    2. Pass 1 — summary clustering: union-find по Hamming ≤ HAMMING_THRESHOLD,
+       но пропускает книги, чей simhash встречается у >PLACEHOLDER_CLUSTER_LIMIT
+       книг (защита от placeholder-саммари вроде «Не удалось определить содержимое»).
+    3. Pass 2 — title clustering: группирует по точному совпадению normalize_title().
+    4. Marking: для каждого кластера помечает non-canonical как duplicate_of.
 
     Возвращает статистику.
     """
@@ -119,20 +148,54 @@ def run_dedup(conn: sqlite3.Connection) -> dict:
 
     # ── Шаг 3: загрузка книг ─────────────────────────────────────────────────
     rows = conn.execute(
-        "SELECT id, file_format, file_size_mb, text_simhash FROM books WHERE text_simhash IS NOT NULL"
+        "SELECT id, file_format, file_size_mb, text_simhash, title "
+        "FROM books WHERE text_simhash IS NOT NULL"
     ).fetchall()
 
-    books = [{"id": r[0], "file_format": r[1], "file_size_mb": r[2], "simhash": r[3]} for r in rows]
+    books = [
+        {
+            "id": r[0],
+            "file_format": r[1],
+            "file_size_mb": r[2],
+            "simhash": r[3],
+            "title_key": normalize_title(r[4] or ""),
+        }
+        for r in rows
+    ]
     ids = [b["id"] for b in books]
     book_by_id = {b["id"]: b for b in books}
-
-    # ── Шаг 4: union-find ─────────────────────────────────────────────────────
     uf = _UnionFind(ids)
     n = len(books)
+
+    # ── Шаг 4a: Pass 1 — summary-based clustering ────────────────────────────
+    # Simhash, разделяемый >PLACEHOLDER_CLUSTER_LIMIT книгами, — это placeholder;
+    # такие книги пропускаем, чтобы не склеить несвязанные книги в один кластер.
+    simhash_freq: Counter = Counter(b["simhash"] for b in books)
     for i in range(n):
+        if simhash_freq[books[i]["simhash"]] > PLACEHOLDER_CLUSTER_LIMIT:
+            continue
         for j in range(i + 1, n):
+            if simhash_freq[books[j]["simhash"]] > PLACEHOLDER_CLUSTER_LIMIT:
+                continue
             if hamming_distance(books[i]["simhash"], books[j]["simhash"]) <= HAMMING_THRESHOLD:
                 uf.union(books[i]["id"], books[j]["id"])
+
+    # ── Шаг 4b: Pass 2 — title-based clustering ──────────────────────────────
+    # Ловит реальные дубли (разные форматы одной книги), у которых разные
+    # саммари, но одинаковый нормализованный заголовок.
+    title_groups: dict[str, list[int]] = {}
+    for b in books:
+        key = b["title_key"]
+        if not key:
+            continue
+        title_groups.setdefault(key, []).append(b["id"])
+
+    title_groups_found = 0
+    for members in title_groups.values():
+        if len(members) > 1:
+            title_groups_found += 1
+            for m in members[1:]:
+                uf.union(members[0], m)
 
     # ── Шаг 5: выбор canonical и разметка ────────────────────────────────────
     groups = uf.groups()
@@ -157,4 +220,5 @@ def run_dedup(conn: sqlite3.Connection) -> dict:
         "backfilled": len(nulls),
         "groups_found": groups_found,
         "duplicates_marked": duplicates_marked,
+        "title_groups_found": title_groups_found,
     }

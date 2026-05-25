@@ -150,6 +150,7 @@ def cmd_dedup(ctx):
     if stats["backfilled"]:
         click.echo(f"  Вычислено simhash: {stats['backfilled']} книг")
     click.echo(f"  Групп дубликатов:  {stats['groups_found']}")
+    click.echo(f"    из них по title: {stats['title_groups_found']}")
     click.echo(f"  Помечено дублей:   {stats['duplicates_marked']}")
 
     if stats["duplicates_marked"] == 0:
