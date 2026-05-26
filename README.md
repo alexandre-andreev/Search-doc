@@ -244,7 +244,7 @@ Command:
 $env:PYTHONPATH='D:\_project\Search-doc\venv-embed-test\Lib\site-packages'
 $env:PYTHONIOENCODING='utf-8'
 & 'C:\Users\alexa\AppData\Local\Programs\Python\Python313\python.exe' 'D:\_project\Search-doc\search-doc.py' search '<query>' --top 10 --format json
-```
+
 
 Pass the user's query as-is. Do NOT rephrase it before passing to the tool.
 
